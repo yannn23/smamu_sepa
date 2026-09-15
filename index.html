@@ -1,105 +1,147 @@
 <!DOCTYPE html>
-<html lang="id">
+<html>
 <head>
-<title>Sistem Absensi Sekolah</title>
-<script src="https://unpkg.com/html5-qrcode"></script>
-<style>
-body{font-family:Arial;background:#f0f2f5;padding:20px}
-.login-box,.dashboard{max-width:600px;margin:auto;background:white;padding:20px;border-radius:10px;box-shadow:0 2px 10px #ccc}
-button{padding:10px 15px;margin:5px;background:#1a73e8;color:white;border:none;border-radius:5px;cursor:pointer}
-.hidden{display:none}
-#reader{width:100%;}
-</style>
+  <title>Absensi Online</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: Arial; background: #f2f2f2; text-align: center; padding-top: 50px; }
+    .login-box, .dashboard { background: white; padding: 20px; border-radius: 10px; width: 350px; margin: auto; box-shadow: 0 0 10px #ccc; }
+    .hidden { display: none; }
+    input, select, button { width: 90%; padding: 10px; margin: 5px 0; border-radius: 5px; border: 1px solid #ccc; }
+    button { background: #4CAF50; color: white; cursor: pointer; border: none; }
+    button:hover { background: #45a049; }
+    button.danger { background: red; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    table, th, td { border: 1px solid #ddd; }
+    th, td { padding: 8px; text-align: center; }
+  </style>
 </head>
 <body>
 
-<h1 style="text-align:center;"> SISTEM ABSENSI SEKOLAH</h1>
+  <!-- 1. HALAMAN LOGIN -->
+  <div class="login-box" id="login">
+    <h2>Login Absensi</h2>
+    <select id="role">
+      <option value="admin">Admin</option>
+      <option value="guru">Guru</option>
+      <option value="siswa">Siswa</option>
+    </select><br>
+    <input type="text" id="user" placeholder="Username/NIS"><br>
+    <input type="password" id="pass" placeholder="Password"><br>
+    <button onclick="login()">Masuk</button>
+    <p id="error" style="color:red"></p>
+  </div>
 
-<!-- 1. HALAMAN LOGIN -->
-<div class="login-box" id="login">
-  <h2>Login</h2>
-  <select id="role">
-    <option value="admin">Admin</option>
-    <option value="guru">Guru</option>
-    <option value="siswa">Siswa</option>
-  </select><br><br>
-  <input type="text" id="user" placeholder="Username/NIS"><br><br>
-  <input type="password" id="pass" placeholder="Password"><br><br>
-  <button onclick="login()">Masuk</button>
-  <p id="error" style="color:red"></p>
-</div>
+  <!-- 2. HALAMAN ADMIN -->
+  <div class="dashboard hidden" id="adminMenu">
+    <h2>Menu Admin</h2>
+    <button onclick="showKelola('guru')">Kelola Guru</button>
+    <button onclick="showKelola('siswa')">Kelola Siswa</button>
+    <button onclick="logout()" class="danger">Logout</button>
+    <hr>
+    <div id="kelolaArea"></div> <!-- ini buat nampilin form + tabel -->
+  </div>
 
+  <!-- 3. HALAMAN GURU -->
+  <div class="dashboard hidden" id="dashboard-guru">
+    <h2>Dashboard Guru</h2>
+    <p>Selamat datang, <span id="namaGuru"></span></p>
+    <button onclick="logout()" class="danger">Logout</button>
+    <!-- nanti isi absen disini -->
+  </div>
 
-<!-- 2. DASHBOARD ADMIN -->
-<div class="dashboard hidden" id="dashboard-admin">
-  <h2>Dashboard Admin</h2>
-  <button onclick="showTab('kelola')">Kelola Guru & Siswa</button>
-  <button onclick="showTab('rekap')">Lihat Semua Absen</button>
-  <button onclick="logout()">Logout</button>
-</div>
+  <!-- 4. HALAMAN SISWA -->
+  <div class="dashboard hidden" id="dashboard-siswa">
+    <h2>Dashboard Siswa</h2>
+    <p>Selamat datang, <span id="namaSiswa"></span></p>
+    <button onclick="logout()" class="danger">Logout</button>
+    <!-- nanti isi absen disini -->
+  </div>
 
-<!-- 3. DASHBOARD GURU -->
-<div class="dashboard hidden" id="dashboard-guru">
-  <h2>Dashboard Guru: <span id="namaGuru"></span></h2>
-  <button onclick="startScan('siswa')">Scan Absen Siswa</button>
-  <button onclick="startScan('guru')">Absen Masuk Guru</button>
-  <button onclick="showTab('edit')">Edit Absen Siswa</button>
-  <button onclick="logout()">Logout</button>
-  <div id="reader" class="hidden"></div>
-</div>
-
-<!-- 4. DASHBOARD SISWA -->
-<div class="dashboard hidden" id="dashboard-siswa">
-  <h2>Dashboard Siswa: <span id="namaSiswa"></span></h2>
-  <button onclick="startScan('siswa')">Scan Absen Saya</button>
-  <button onclick="lihatRiwayat()">Lihat Keaktifan Saya</button>
-  <button onclick="logout()">Logout</button>
-  <div id="riwayat"></div>
-  <div id="reader" class="hidden"></div>
-</div>
 
 <script>
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyPVBSWsLDyWK4d9sRRyCAnD8YSb-u2oAaGXqZuO5VGB4SjM3QQJGzoO9WlZUeTFf3e/exec";
-let currentUser = {};
-let html5QrCode;
+  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyPVBSWsLDyWK4d9sRRyCAnD8YSb-u2oAaGXqZuO5VGB4SjM3QQJGzoO9WlZUeTFf3e/exec";
+  let currentUser = null;
 
-// FUNGSI LOGIN - Ngecek ke Google Sheet
-function login(){
-  const role = document.getElementById('role').value;
-  const user = document.getElementById('user').value;
-  const pass = document.getElementById('pass').value;
-  
-  fetch(`${SCRIPT_URL}?action=login&role=${role}&user=${user}&pass=${pass}`)
-  .then(res => res.json())
-  .then(data => {
-    if(data.status == "sukses"){
-      currentUser = data;
-      document.getElementById('login').classList.add('hidden');
-      document.getElementById('dashboard-'+role).classList.remove('hidden');
-      if(role=='guru') document.getElementById('namaGuru').innerText = data.nama;
-      if(role=='siswa') document.getElementById('namaSiswa').innerText = data.nama;
-    } else {
-      document.getElementById('error').innerText = "Login gagal";
+  // FUNGSI LOGIN
+  function login(){
+    const role = document.getElementById('role').value;
+    const user = document.getElementById('user').value;
+    const pass = document.getElementById('pass').value;
+    document.getElementById('error').innerText = "";
+
+    fetch(`${SCRIPT_URL}?action=login&role=${role}&user=${user}&pass=${pass}`)
+    .then(res => res.json())
+    .then(data => {
+      if(data.status == "sukses"){
+        currentUser = data;
+        document.getElementById('login').classList.add('hidden');
+
+        if(role == 'admin'){
+          document.getElementById('adminMenu').classList.remove('hidden');
+        } else {
+          document.getElementById('dashboard-'+role).classList.remove('hidden');
+          if(role == 'guru') document.getElementById('namaGuru').innerText = data.nama;
+          if(role == 'siswa') document.getElementById('namaSiswa').innerText = data.nama;
+        }
+      } else {
+        document.getElementById('error').innerText = "Username atau Password salah";
+      }
+    }).catch(err => document.getElementById('error').innerText = "Error koneksi");
+  }
+
+  function logout(){
+    location.reload();
+  }
+
+  // FUNGSI ADMIN
+  function showKelola(jenis){
+    document.getElementById('kelolaArea').innerHTML = `
+      <h3>Kelola ${jenis.toUpperCase()}</h3>
+      <input id="namaBaru" placeholder="Nama Lengkap">
+      <input id="userBaru" placeholder="Username/NIS">
+      <input id="passBaru" placeholder="Password">
+      <button onclick="tambahData('${jenis}')">Tambah Data</button>
+      <div id="tabel${jenis}">Loading...</div>
+    `;
+    loadTabel(jenis);
+  }
+
+  function tambahData(jenis){
+    const nama = document.getElementById('namaBaru').value;
+    const user = document.getElementById('userBaru').value;
+    const pass = document.getElementById('passBaru').value;
+    if(nama == "" || user == "" || pass == "") return alert("Isi semua");
+
+    fetch(`${SCRIPT_URL}?action=tambah&jenis=${jenis}&nama=${nama}&user=${user}&pass=${pass}`)
+    .then(res => res.json()).then(data => { 
+      alert(data.pesan); 
+      loadTabel(jenis); 
+      document.getElementById('namaBaru').value = "";
+      document.getElementById('userBaru').value = "";
+      document.getElementById('passBaru').value = "";
+    })
+  }
+
+  function loadTabel(jenis){
+    fetch(`${SCRIPT_URL}?action=lihat&jenis=${jenis}`)
+    .then(res => res.json()).then(data => {
+      let html = "<table><tr><th>Nama</th><th>Username</th><th>Aksi</th></tr>";
+      data.forEach(d => {
+        html += `<tr><td>${d.nama}</td><td>${d.user}</td>
+        <td><button class="danger" onclick="hapusData('${jenis}','${d.user}')">Hapus</button></td></tr>`;
+      })
+      document.getElementById('tabel'+jenis).innerHTML = html + "</table>";
+    })
+  }
+
+  function hapusData(jenis, id){
+    if(confirm("Yakin mau hapus "+id+"?")){
+      fetch(`${SCRIPT_URL}?action=hapus&jenis=${jenis}&id=${id}`)
+      .then(res => res.json()).then(data => { alert(data.pesan); loadTabel(jenis); })
     }
-  })
-}
+  }
 
-// FUNGSI SCAN BARCODE
-function startScan(tipe){
-  document.getElementById('reader').classList.remove('hidden');
-  html5QrCode = new Html5Qrcode("reader");
-  html5QrCode.start({ facingMode: "environment" }, { fps: 10 }, (nis)=>{
-    // Kirim ke Google Sheet: siapa yg scan, nis siapa, role siapa
-    fetch(`${SCRIPT_URL}?action=absen&tipe=${tipe}&nis=${nis}&oleh=${currentUser.user}`)
-    .then(res=>res.text()).then(alert);
-    html5QrCode.stop();
-    document.getElementById('reader').classList.add('hidden');
-  });
-}
-
-function logout(){
-  location.reload();
-}
 </script>
 </body>
 </html>
